@@ -1,0 +1,14 @@
+#options {
+	display : flex;
+	flex-direction : column;
+	padding-top : 5px;
+}
+
+#options > div > * {
+	padding : 5px;
+	cursor : pointer;
+}
+
+#options > div > *:hover {
+	background-color : #dedede;
+}

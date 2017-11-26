@@ -1,0 +1,25 @@
+{
+	"manifest_version" : 2,
+	"name" : "Sort tabs advanced",
+	"version" : "0.1",
+	"author" : "Mois Moshev <mois@monomon.me>",
+	
+	"icons" : {
+		"48" : "icons/sortabs-48.png"
+	},
+	"description" : "Sort tabs by various criteria",
+	"browser_action" : {
+		"default_icon" : {
+			"16" : "icons/sortabs-16.png",
+			"24" : "icons/sortabs-24.png",
+			"48" : "icons/sortabs-48.png"
+		},
+		"default_title" : "Sort tabs advanced",
+		"default_popup" : "popup/picker.html",
+		"browser_style" : true
+	},
+	"permissions" : [
+		"tabs"
+	]
+}
+	
