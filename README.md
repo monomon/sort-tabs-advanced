@@ -1,6 +1,6 @@
 # Sort tabs advanced
 
-https://addons.mozilla.org/en-US/developers/addon/sort-tabs-advanced/
+https://addons.mozilla.org/en-US/firefox/addon/sort-tabs-advanced/
 
 Web extension for sorting tabs by various criteria:
 
