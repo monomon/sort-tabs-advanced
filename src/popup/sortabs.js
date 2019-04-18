@@ -154,29 +154,50 @@ let menuIdToComparator = {
 };
 
 function sortTabs(comparator) {
-	let num_pinned = 0;
 	return browser.tabs.query({
 		pinned : true,
 		currentWindow : true
 	}).then((pinnedTabs) => {
-		num_pinned = pinnedTabs.length;
-		pinnedTabs.sort(comparator);
-		return browser.tabs.move(
-			pinnedTabs.map((tab) => { return tab.id; }),
-			{ index : 0 }
-		);
-	}).then(() => {
+		sortTabsInternal(pinnedTabs, comparator);
 		return browser.tabs.query({
 			pinned : false,
 			currentWindow : true
 		});
 	}).then((normalTabs) => {
-		normalTabs.sort(comparator);
-		return browser.tabs.move(
-			normalTabs.map((tab) => { return tab.id; }),
-			{ index : num_pinned }
-		);
+		sortTabsInternal(normalTabs, comparator);
 	});
+}
+
+function sortTabsInternal(tabs, comparator) {
+	if (tabs.length == 0)
+		return;
+
+	const offset = tabs[0].index;
+	const beforeIds = tabs.map(tab => tab.id);
+	const afterIds = tabs.slice(0).sort(comparator).map(tab => tab.id);
+	let sortedIds = beforeIds.slice(0);
+	for (const difference of differ.diff(beforeIds, afterIds)) {
+		if (!difference.added)
+			continue;
+		let movingIds = difference.value;
+		const nearestFollowingIndex = afterIds.indexOf(movingIds[movingIds.length - 1]) + 1;
+		let newIndex = nearestFollowingIndex < afterIds.length ? sortedIds.indexOf(afterIds[nearestFollowingIndex]) : -1;
+		if (newIndex < 0)
+			newIndex = beforeIds.length;
+		// Reject already moved tabs.
+		let oldIndices = movingIds.map(id => sortedIds.indexOf(id));
+		movingIds = movingIds.filter((id, index) => oldIndices[index] > -1);
+		if (movingIds.length === 0)
+			continue;
+		oldIndices = oldIndices.filter(index => index > -1);
+		if (oldIndices[0] < newIndex)
+			newIndex--;
+		browser.tabs.move(movingIds, {
+			index: newIndex + offset
+		});
+		sortedIds = sortedIds.filter(id => !movingIds.includes(id));
+		sortedIds.splice(newIndex, 0, ...movingIds);
+	}
 }
 
 function clickHandler(evt) {
