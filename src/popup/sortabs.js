@@ -155,15 +155,17 @@ let menuIdToComparator = {
 
 function sortTabs(comparator) {
 	return browser.tabs.query({
-		pinned : true,
 		currentWindow : true
-	}).then((pinnedTabs) => {
+	}).then((tabs) => {
+		const pinnedTabs = [];
+		const normalTabs = [];
+		for (const tab of tabs) {
+			if (tab.pinned)
+				pinnedTabs.push(tab);
+			else
+				normalTabs.push(tab);
+		}
 		sortTabsInternal(pinnedTabs, comparator);
-		return browser.tabs.query({
-			pinned : false,
-			currentWindow : true
-		});
-	}).then((normalTabs) => {
 		sortTabsInternal(normalTabs, comparator);
 	});
 }
@@ -184,12 +186,7 @@ function sortTabsInternal(tabs, comparator) {
 		let newIndex = nearestFollowingIndex < afterIds.length ? sortedIds.indexOf(afterIds[nearestFollowingIndex]) : -1;
 		if (newIndex < 0)
 			newIndex = beforeIds.length;
-		// Reject already moved tabs.
 		let oldIndices = movingIds.map(id => sortedIds.indexOf(id));
-		movingIds = movingIds.filter((id, index) => oldIndices[index] > -1);
-		if (movingIds.length === 0)
-			continue;
-		oldIndices = oldIndices.filter(index => index > -1);
 		if (oldIndices[0] < newIndex)
 			newIndex--;
 		browser.tabs.move(movingIds, {
