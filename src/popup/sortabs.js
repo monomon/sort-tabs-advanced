@@ -154,29 +154,48 @@ let menuIdToComparator = {
 };
 
 function sortTabs(comparator) {
-	let num_pinned = 0;
 	return browser.tabs.query({
-		pinned : true,
 		currentWindow : true
-	}).then((pinnedTabs) => {
-		num_pinned = pinnedTabs.length;
-		pinnedTabs.sort(comparator);
-		return browser.tabs.move(
-			pinnedTabs.map((tab) => { return tab.id; }),
-			{ index : 0 }
-		);
-	}).then(() => {
-		return browser.tabs.query({
-			pinned : false,
-			currentWindow : true
-		});
-	}).then((normalTabs) => {
-		normalTabs.sort(comparator);
-		return browser.tabs.move(
-			normalTabs.map((tab) => { return tab.id; }),
-			{ index : num_pinned }
-		);
+	}).then((tabs) => {
+		const pinnedTabs = [];
+		const normalTabs = [];
+		for (const tab of tabs) {
+			if (tab.pinned)
+				pinnedTabs.push(tab);
+			else
+				normalTabs.push(tab);
+		}
+		sortTabsInternal(pinnedTabs, comparator);
+		sortTabsInternal(normalTabs, comparator);
 	});
+}
+
+function sortTabsInternal(tabs, comparator) {
+	if (tabs.length == 0)
+		return;
+
+	const offset = tabs[0].index;
+	const beforeIds = tabs.map(tab => tab.id);
+	const afterIds = tabs.slice(0).sort(comparator).map(tab => tab.id);
+	let currentIds = beforeIds.slice(0);
+	for (const difference of differ.diff(beforeIds, afterIds)) {
+		if (!difference.added)
+			continue;
+		const movingIds = difference.value;
+		const lastMovingId = movingIds[movingIds.length - 1];
+		const nearestFollowingIndex = afterIds.indexOf(lastMovingId) + 1;
+		let newIndex = nearestFollowingIndex < afterIds.length ? currentIds.indexOf(afterIds[nearestFollowingIndex]) : -1;
+		if (newIndex < 0)
+			newIndex = beforeIds.length;
+		const oldIndex = currentIds.indexOf(movingIds[0]);
+		if (oldIndex < newIndex)
+			newIndex--;
+		browser.tabs.move(movingIds, {
+			index: newIndex + offset
+		});
+		currentIds = currentIds.filter(id => !movingIds.includes(id));
+		currentIds.splice(newIndex, 0, ...movingIds);
+	}
 }
 
 function clickHandler(evt) {
