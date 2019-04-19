@@ -177,23 +177,24 @@ function sortTabsInternal(tabs, comparator) {
 	const offset = tabs[0].index;
 	const beforeIds = tabs.map(tab => tab.id);
 	const afterIds = tabs.slice(0).sort(comparator).map(tab => tab.id);
-	let sortedIds = beforeIds.slice(0);
+	let currentIds = beforeIds.slice(0);
 	for (const difference of differ.diff(beforeIds, afterIds)) {
 		if (!difference.added)
 			continue;
 		const movingIds = difference.value;
-		const nearestFollowingIndex = afterIds.indexOf(movingIds[movingIds.length - 1]) + 1;
-		let newIndex = nearestFollowingIndex < afterIds.length ? sortedIds.indexOf(afterIds[nearestFollowingIndex]) : -1;
+		const lastMovingId = movingIds[movingIds.length - 1];
+		const nearestFollowingIndex = afterIds.indexOf(lastMovingId) + 1;
+		let newIndex = nearestFollowingIndex < afterIds.length ? currentIds.indexOf(afterIds[nearestFollowingIndex]) : -1;
 		if (newIndex < 0)
 			newIndex = beforeIds.length;
-		const oldIndices = movingIds.map(id => sortedIds.indexOf(id));
-		if (oldIndices[0] < newIndex)
+		const oldIndex = currentIds.indexOf(movingIds[0]);
+		if (oldIndex < newIndex)
 			newIndex--;
 		browser.tabs.move(movingIds, {
 			index: newIndex + offset
 		});
-		sortedIds = sortedIds.filter(id => !movingIds.includes(id));
-		sortedIds.splice(newIndex, 0, ...movingIds);
+		currentIds = currentIds.filter(id => !movingIds.includes(id));
+		currentIds.splice(newIndex, 0, ...movingIds);
 	}
 }
 
