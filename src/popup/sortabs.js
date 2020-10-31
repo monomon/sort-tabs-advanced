@@ -63,6 +63,16 @@ let menuDefs = [{
 	}
 }];
 
+let settingsDefs = [{
+	id : "settings-sort-auto",
+	title : "sort automatically",
+	contexts : ["tools_menu", "browser_action"]
+}, {
+  id: "settings-sort-pinned",
+  title: "sort pinned tabs",
+	contexts : ["tools_menu", "browser_action"]
+}];
+
 /**
  * Comparison functions
  */
@@ -87,13 +97,13 @@ function compareByDomainAsc(a, b) {
 	let url2 = new URL(b.url);
 
 	let domain1 = url1.hostname
-		.split(".")
-		.slice(-2)
-		.join(".");
+		  .split(".")
+		  .slice(-2)
+		  .join(".");
 	let domain2 = url2.hostname
-		.split(".")
-		.slice(-2)
-		.join(".");
+		  .split(".")
+		  .slice(-2)
+		  .join(".");
 
 	return domain1.localeCompare(domain2);
 }
@@ -103,13 +113,13 @@ function compareByDomainDesc(a, b) {
 	let url2 = new URL(b.url);
 
 	let domain1 = url1.hostname
-		.split(".")
-		.slice(-2)
-		.join(".");
+		  .split(".")
+		  .slice(-2)
+		  .join(".");
 	let domain2 = url2.hostname
-		.split(".")
-		.slice(-2)
-		.join(".");
+		  .split(".")
+		  .slice(-2)
+		  .join(".");
 
 	return domain2.localeCompare(domain1);
 }
@@ -153,50 +163,135 @@ let menuIdToComparator = {
 	"sort-by-title-desc" : compareByTitleDesc,
 };
 
+let settingsMenuIdToHandler = {
+  "settings-sort-auto": onSettingsSortAuto,
+  "settings-sort-pinned": onSettingsSortPinned
+};
+
 function sortTabs(comparator) {
 	let num_pinned = 0;
 	return browser.tabs.query({
 		pinned : true,
 		currentWindow : true
-	}).then((pinnedTabs) => {
-		num_pinned = pinnedTabs.length;
-		pinnedTabs.sort(comparator);
-		return browser.tabs.move(
-			pinnedTabs.map((tab) => { return tab.id; }),
-			{ index : 0 }
-		);
-	}).then(() => {
-		return browser.tabs.query({
-			pinned : false,
-			currentWindow : true
-		});
-	}).then((normalTabs) => {
-		normalTabs.sort(comparator);
-		return browser.tabs.move(
-			normalTabs.map((tab) => { return tab.id; }),
-			{ index : num_pinned }
-		);
-	});
+	}).then(
+    (pinnedTabs) => {
+      if (settings["settings-sort-pinned"]) {
+		    num_pinned = pinnedTabs.length;
+		    pinnedTabs.sort(comparator);
+		    return browser.tabs.move(
+			    pinnedTabs.map((tab) => { return tab.id; }),
+			    { index : 0 });
+      } else {
+        return Promise.resolve();
+      }
+	  }, onError).then(
+      () => {
+		    return browser.tabs.query({
+			    pinned : false,
+			    currentWindow : true
+		    });
+	    }, onError).then(
+        (normalTabs) => {
+		      normalTabs.sort(comparator);
+		      return browser.tabs.move(
+			      normalTabs.map((tab) => { return tab.id; }),
+			      { index : num_pinned }
+		      );
+	      }, onError);
+}
+
+function onError(error) {
+  console.log(error);
+}
+
+function initializeSettings() {
+  let defaultDict = settingsDefs.reduce(
+    (acc, cur, idx, src) => Object.assign(acc, {[cur.id]: false}),
+    {});
+  return browser.storage.local.get(defaultDict);
 }
 
 function clickHandler(evt) {
 	if (menuIdToComparator[evt.target.id]) {
 		sortTabs(menuIdToComparator[evt.target.id])
-			.then(() => {
-				window.close();
-			});
+			.then(
+        () => {
+          console.log("Click handler: " + evt.target.id);
+          browser.storage.local.set({
+            "last-comparator": evt.target.id
+          }).then(
+				    () => window.close(),
+            onError);
+			  }, onError);
 	} else {
 		console.warn('handler not found ' + evt.target.id);
 	}
 }
 
-function createButton(buttonDef) {
+function settingsClickHandler(evt, settings) {
+  if (settingsMenuIdToHandler[evt.target.id]) {
+    console.log(evt.target.id);
+    settingsMenuIdToHandler[evt.target.id](evt).then(
+      (e) => {
+        return browser.storage.local.set({
+          [evt.target.id]: evt.target.checked
+        });
+      }, onError);
+  } else {
+    console.warn('handler not found ' + evt.target.id);
+  }
+}
+
+function createButton(buttonDef, settings) {
 	let newEl = document.createElement('div');
 	newEl.id = buttonDef.id;
-	newEl.innerText = buttonDef.title;
+  newEl.innerText = buttonDef.title;
 	// newEl.src = "../" + buttonDef.icons[16];
 	newEl.addEventListener("click", clickHandler);
 	return newEl;
+}
+
+function settingsSortAutoHandler(tabId, changeInfo, tabInfo) {
+  browser.storage.local.get("last-comparator").then(
+    (last_comparator) => {
+      if (menuIdToComparator[last_comparator]) {
+        return sortTabs(menuIdToComparator[last_comparator]);
+      }
+    }, onError);
+}
+
+function onSettingsSortAuto(evt) {
+  if (evt.target.checked) {
+    browser.tabs.onUpdated.addListener(settingsSortAutoHandler);
+  } else {
+    browser.tabs.onUpdated.removeListener(settingsSortAutoHandler);
+  }
+
+  return Promise.resolve();
+}
+
+function onSettingsSortPinned(evt) {
+  return Promise.resolve();
+}
+
+function createSettingsToggle(buttonDef, settings) {
+  let newEl = document.createElement('div');
+  newEl.id = buttonDef.id;
+  let checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.id = buttonDef.id;
+  checkbox.name = buttonDef.id;
+  let label = document.createElement('label');
+  label.innerText = buttonDef.title;
+  label.htmlFor = buttonDef.id;
+  checkbox.checked = settings[buttonDef.id];
+
+  newEl.appendChild(checkbox);
+  newEl.appendChild(label);
+  newEl.addEventListener(
+    "click",
+    (evt) => settingsClickHandler(evt, settings));
+  return newEl;
 }
 
 /**
@@ -204,12 +299,29 @@ function createButton(buttonDef) {
  */
 
 // do this before content loaded
-const buttons = menuDefs.map(createButton);
-const buttonGroup = document.createElement("div");
-buttons.forEach((button) => buttonGroup.append(button));
+// const settingsGroup = settingsDefs.map(createSettingsToggle);
+document.addEventListener(
+  "DOMContentLoaded",
+  () => {
+    initializeSettings().then(
+      (settings) => {
+        console.log(settings);
+        const settingsGroup = document.createElement("div");
+        const settingsButtons = settingsDefs.map(
+          (def) => createSettingsToggle(def, settings));
+        settingsButtons.forEach((button) => settingsGroup.appendChild(button));
 
-// now just append the container
-document.addEventListener("DOMContentLoaded", () => {
-	let cont = document.getElementById("options");
-	cont.append(buttonGroup);
-});
+        const buttons = menuDefs.map(
+          (menuDef) => createButton(menuDef, settings));
+        const buttonGroup = document.createElement("div");
+        buttons.forEach((button) => buttonGroup.appendChild(button));
+        // console.log(buttons);
+
+	      let cont = document.getElementById("options");
+	      cont.appendChild(buttonGroup);
+        cont.appendChild(document.createElement("hr"));
+        let settingsCont = document.getElementById("settings");
+        settingsCont.appendChild(settingsGroup);
+      }, onError);
+  },
+  (err) => console.log(err));
