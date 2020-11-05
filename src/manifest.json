@@ -25,5 +25,8 @@
     "gecko": {
       "id": "sort_tabs_advanced@monomon.me"
     }
+  },
+  "background": {
+    "scripts": ["background.js"]
   }
 }
