@@ -63,172 +63,107 @@ let menuDefs = [{
 	}
 }];
 
-/**
- * Comparison functions
- */
-function compareByUrlAsc(a, b) {
-	let url1 = new URL(a.url);
-	let url2 = new URL(b.url);
+let settingsDefs = [{
+	id : "settings-sort-auto",
+	title : "sort automatically",
+	contexts : ["tools_menu", "browser_action"]
+}, {
+  id: "settings-sort-pinned",
+  title: "sort pinned tabs",
+	contexts : ["tools_menu", "browser_action"]
+}];
 
-	return url1.hostname
-		.localeCompare(url2.hostname);
+
+function onError(error) {
+  console.trace(error);
 }
 
-function compareByUrlDesc(a, b) {
-	let url1 = new URL(a.url);
-	let url2 = new URL(b.url);
-
-	return url2.hostname
-		.localeCompare(url1.hostname);
+function initializeSettings() {
+  let defaultDict = settingsDefs.reduce(
+    (acc, cur, idx, src) => Object.assign(acc, {[cur.id]: false}),
+    {});
+  return browser.storage.local.get(defaultDict);
 }
 
-function compareByDomainAsc(a, b) {
-	let url1 = new URL(a.url);
-	let url2 = new URL(b.url);
-
-	let domain1 = url1.hostname
-		.split(".")
-		.slice(-2)
-		.join(".");
-	let domain2 = url2.hostname
-		.split(".")
-		.slice(-2)
-		.join(".");
-
-	return domain1.localeCompare(domain2);
+function clickHandler(evt, settings) {
+  let backgroundWindow = browser.runtime.getBackgroundPage();
+  backgroundWindow.then(
+    (w) => w.sortTabsComparatorName(evt.target.id, settings))
+		.then(
+      (tab) => {
+        console.log("Click handler: " + evt.target.id);
+        return browser.storage.local.set({
+          "last-comparator": evt.target.id
+        }).then(
+				  () => window.close(),
+          onError);
+			}, onError);
 }
 
-function compareByDomainDesc(a, b) {
-	let url1 = new URL(a.url);
-	let url2 = new URL(b.url);
-
-	let domain1 = url1.hostname
-		.split(".")
-		.slice(-2)
-		.join(".");
-	let domain2 = url2.hostname
-		.split(".")
-		.slice(-2)
-		.join(".");
-
-	return domain2.localeCompare(domain1);
+function settingsClickHandler(evt, settings) {
+  let backgroundWindow = browser.runtime.getBackgroundPage();
+  return backgroundWindow.then(
+    (w) => w.settingChanged(evt));
 }
 
-function compareByTitleAsc(a, b) {
-	return a.title.localeCompare(b.title);
-}
-
-function compareByTitleDesc(a, b) {
-	return b.title.localeCompare(a.title);
-}
-
-function compareByLastAccessAsc(a, b) {
-	if (a.lastAccessed < b.lastAccessed) {
-		return -1;
-	} else if (a.lastAccessed > b.lastAccessed) {
-		return 1;
-	} else {
-		return 0;
-	}
-}
-
-function compareByLastAccessDesc(a, b) {
-	if (b.lastAccessed < a.lastAccessed) {
-		return -1;
-	} else if (b.lastAccessed > a.lastAccessed) {
-		return 1;
-	} else {
-		return 0;
-	}
-}
-
-let menuIdToComparator = {
-	"sort-by-url-asc" : compareByUrlAsc,
-	"sort-by-url-desc" : compareByUrlDesc,
-	"sort-by-domain-asc" : compareByDomainAsc,
-	"sort-by-domain-desc" : compareByDomainDesc,
-	"sort-by-last-access-asc" : compareByLastAccessAsc,
-	"sort-by-last-access-desc" : compareByLastAccessDesc,
-	"sort-by-title-asc" : compareByTitleAsc,
-	"sort-by-title-desc" : compareByTitleDesc,
-};
-
-function sortTabs(comparator) {
-	return browser.tabs.query({
-		currentWindow : true
-	}).then((tabs) => {
-		const pinnedTabs = [];
-		const normalTabs = [];
-		for (const tab of tabs) {
-			if (tab.pinned)
-				pinnedTabs.push(tab);
-			else
-				normalTabs.push(tab);
-		}
-		sortTabsInternal(pinnedTabs, comparator);
-		sortTabsInternal(normalTabs, comparator);
-	});
-}
-
-function sortTabsInternal(tabs, comparator) {
-	if (tabs.length == 0)
-		return;
-
-	const offset = tabs[0].index;
-	const beforeIds = tabs.map(tab => tab.id);
-	const afterIds = tabs.slice(0).sort(comparator).map(tab => tab.id);
-	let currentIds = beforeIds.slice(0);
-	for (const difference of differ.diff(beforeIds, afterIds)) {
-		if (!difference.added)
-			continue;
-		const movingIds = difference.value;
-		const lastMovingId = movingIds[movingIds.length - 1];
-		const nearestFollowingIndex = afterIds.indexOf(lastMovingId) + 1;
-		let newIndex = nearestFollowingIndex < afterIds.length ? currentIds.indexOf(afterIds[nearestFollowingIndex]) : -1;
-		if (newIndex < 0)
-			newIndex = beforeIds.length;
-		const oldIndex = currentIds.indexOf(movingIds[0]);
-		if (oldIndex < newIndex)
-			newIndex--;
-		browser.tabs.move(movingIds, {
-			index: newIndex + offset
-		});
-		currentIds = currentIds.filter(id => !movingIds.includes(id));
-		currentIds.splice(newIndex, 0, ...movingIds);
-	}
-}
-
-function clickHandler(evt) {
-	if (menuIdToComparator[evt.target.id]) {
-		sortTabs(menuIdToComparator[evt.target.id])
-			.then(() => {
-				window.close();
-			});
-	} else {
-		console.warn('handler not found ' + evt.target.id);
-	}
-}
-
-function createButton(buttonDef) {
+function createButton(buttonDef, settings) {
 	let newEl = document.createElement('div');
 	newEl.id = buttonDef.id;
-	newEl.innerText = buttonDef.title;
+  newEl.innerText = buttonDef.title;
 	// newEl.src = "../" + buttonDef.icons[16];
-	newEl.addEventListener("click", clickHandler);
+	newEl.addEventListener(
+    "click",
+    (evt) => clickHandler(evt, settings));
 	return newEl;
+}
+
+function createSettingsToggle(buttonDef, settings) {
+  let newEl = document.createElement('div');
+  newEl.id = buttonDef.id;
+  let checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.id = buttonDef.id;
+  checkbox.name = buttonDef.id;
+  let label = document.createElement('label');
+  label.innerText = buttonDef.title;
+  label.htmlFor = buttonDef.id;
+  checkbox.checked = settings[buttonDef.id];
+
+  newEl.appendChild(checkbox);
+  newEl.appendChild(label);
+  newEl.addEventListener(
+    "click",
+    (evt) => settingsClickHandler(evt, settings));
+  return newEl;
+}
+
+function createPopup(settings) {
+  console.log(settings);
+  const settingsGroup = document.createElement("div");
+  const settingsButtons = settingsDefs.map(
+    (def) => createSettingsToggle(def, settings));
+  settingsButtons.forEach((button) => settingsGroup.appendChild(button));
+
+  const buttons = menuDefs.map(
+    (menuDef) => createButton(menuDef, settings));
+  const buttonGroup = document.createElement("div");
+  buttons.forEach((button) => buttonGroup.appendChild(button));
+
+	let cont = document.getElementById("options");
+	cont.appendChild(buttonGroup);
+  cont.appendChild(document.createElement("hr"));
+  let settingsCont = document.getElementById("settings");
+  settingsCont.appendChild(settingsGroup);
 }
 
 /**
  * init
  */
-
-// do this before content loaded
-const buttons = menuDefs.map(createButton);
-const buttonGroup = document.createElement("div");
-buttons.forEach((button) => buttonGroup.append(button));
-
-// now just append the container
-document.addEventListener("DOMContentLoaded", () => {
-	let cont = document.getElementById("options");
-	cont.append(buttonGroup);
-});
+document.addEventListener(
+  "DOMContentLoaded",
+  (evt) => {
+    initializeSettings().then(
+      (settings) => {
+        createPopup(settings);
+      }, onError);
+  });

@@ -1,9 +1,8 @@
 {
 	"manifest_version" : 2,
 	"name" : "Sort tabs advanced",
-	"version" : "0.1",
+	"version" : "0.2",
 	"author" : "Mois Moshev <mois@monomon.me>",
-	
 	"icons" : {
 		"48" : "icons/sortabs-48.png"
 	},
@@ -19,7 +18,15 @@
 		"browser_style" : true
 	},
 	"permissions" : [
-		"tabs"
-	]
+		"tabs",
+    "storage"
+	],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "{d6f02b92-88b3-4aa5-ba7c-14519042171d}"
+    }
+  },
+  "background": {
+    "scripts": ["background.js"]
+  }
 }
-	
