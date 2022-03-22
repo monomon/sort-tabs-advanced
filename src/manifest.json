@@ -27,6 +27,6 @@
     }
   },
   "background": {
-    "scripts": ["background.js"]
+    "scripts": ["background.js", "popup/differ.js"]
   }
 }
