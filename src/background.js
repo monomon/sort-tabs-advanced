@@ -2,19 +2,11 @@
  * Comparison functions
  */
 function compareByUrlAsc(a, b) {
-	let url1 = new URL(a.url);
-	let url2 = new URL(b.url);
-
-	return url1.hostname
-		.localeCompare(url2.hostname);
+	return a.url.localeCompare(b.url);
 }
 
 function compareByUrlDesc(a, b) {
-	let url1 = new URL(a.url);
-	let url2 = new URL(b.url);
-
-	return url2.hostname
-		.localeCompare(url1.hostname);
+	return b.url.localeCompare(a.url);
 }
 
 function compareByDomainAsc(a, b) {
