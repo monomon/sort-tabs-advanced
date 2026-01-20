@@ -119,39 +119,50 @@ function settingsSortAutoHandler(tabId, changeInfo, tabInfo) {
 }
 
 function sortTabs(comparator, settings) {
-	let num_pinned = 0;
 	return browser.tabs.query({
-		pinned : true,
 		currentWindow : true
-	}).then(
-    (pinnedTabs) => {
-		  num_pinned = pinnedTabs.length;
+	}).then((tabs) => {
+		const pinnedTabs = [];
+		const normalTabs = [];
+		for (const tab of tabs) {
+			if (tab.pinned)
+				pinnedTabs.push(tab);
+			else
+				normalTabs.push(tab);
+		}
+		if (settings["settings-sort-pinned"]) {
+			sortTabsInternal(pinnedTabs, comparator);
+		}
+		sortTabsInternal(normalTabs, comparator);
+	});
+}
 
-      if (settings["settings-sort-pinned"]) {
-        console.log("Sorting pinned: " + num_pinned.toString());
-		    pinnedTabs.sort(comparator);
-		    return browser.tabs.move(
-			    pinnedTabs.map((tab) => { return tab.id; }),
-			    { index : 0 });
-      } else {
-        return [];
-      }
-	  }, onError).then(
-      (_) => {
-		    return browser.tabs.query({
-			    pinned : false,
-			    currentWindow : true
-		    });
-	    }, onError).then(
-        (normalTabs) => {
-          console.log("Sorting normal " + normalTabs.length.toString());
-          console.log("Starting at index " + num_pinned);
-		      normalTabs.sort(comparator);
-		      return browser.tabs.move(
-			      normalTabs.map((tab) => { return tab.id; }),
-			      { index : num_pinned }
-		      );
-	      }, onError);
+function sortTabsInternal(tabs, comparator) {
+	if (tabs.length == 0)
+		return;
+
+	const offset = tabs[0].index;
+	const beforeIds = tabs.map(tab => tab.id);
+	const afterIds = tabs.slice(0).sort(comparator).map(tab => tab.id);
+	let currentIds = beforeIds.slice(0);
+	for (const difference of differ.diff(beforeIds, afterIds)) {
+		if (!difference.added)
+			continue;
+		const movingIds = difference.value;
+		const lastMovingId = movingIds[movingIds.length - 1];
+		const nearestFollowingIndex = afterIds.indexOf(lastMovingId) + 1;
+		let newIndex = nearestFollowingIndex < afterIds.length ? currentIds.indexOf(afterIds[nearestFollowingIndex]) : -1;
+		if (newIndex < 0)
+			newIndex = beforeIds.length;
+		const oldIndex = currentIds.indexOf(movingIds[0]);
+		if (oldIndex < newIndex)
+			newIndex--;
+		browser.tabs.move(movingIds, {
+			index: newIndex + offset
+		});
+		currentIds = currentIds.filter(id => !movingIds.includes(id));
+		currentIds.splice(newIndex, 0, ...movingIds);
+	}
 }
 
 function settingChanged(evt) {
