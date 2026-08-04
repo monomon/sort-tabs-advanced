@@ -17,7 +17,7 @@ You can push the tabs you use often to the top, sinking old ones saved for later
 
 There are switches in the popup that allow toggling automatic sorting and pinned tab sorting.
 
-![sort tabs screenshot](screenshot.png)
+![sort tabs screenshot](sort_tabs_screenshot.png)
 
 ## Automatic sorting
 
